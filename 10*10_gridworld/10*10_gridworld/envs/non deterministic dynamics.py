@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure, Rectangle
 import seaborn as sns
 import statistics as stats
+import os
 
 
 def obs_trp_lists():
@@ -37,7 +38,7 @@ def Q_learning(epsilon1, epsilon2):
 
     episode_goal = []
     q_table = np.zeros([100, 4])
-    no_episodes = 100000
+    no_episodes = 10000000
     times_goal = 0
     times_traped = 0
     for episodes in range(0, no_episodes):
@@ -81,7 +82,11 @@ def Q_learning(epsilon1, epsilon2):
 
             max_value = np.max(q_table[next_state, :])
             new_q_value = (1 - learning_rate) * q_value + learning_rate * (reward + discount_rate * max_value)
-
+            change = abs(q_value - new_q_value)
+            if episodes > 9999990:
+                if change >0.2:
+                    print(state)
+                    print(change)
             q_table[state, chosen_action] = new_q_value
             state = next_state
 
@@ -94,13 +99,18 @@ def Q_learning(epsilon1, epsilon2):
 
 def get_maxQ_array(q_table):
     list_maxQ = []
+    list_maxaction = []
     for i in range(0, 100):
         max_q = np.amax(q_table[i, :], axis=0)
+        index = np.argmax(q_table[i,:], axis=0)
         list_maxQ.append(max_q)
-
+        list_maxaction.append(index)
+    print(list_maxQ)
     maxQ_array = np.array(list_maxQ)
     maxQ_array = maxQ_array.reshape((10, 10))
-    return maxQ_array
+    maxQ_action = np.array(list_maxaction)
+    maxQ_action = maxQ_action.reshape((10, 10))
+    return (maxQ_array, maxQ_action)
 
 
 def get_variance(q_table):
@@ -112,55 +122,49 @@ def get_variance(q_table):
     return var_array
 
 
-epsilon1 = [0.1, 0.2, 0.3]
-epsilon2 = [0.05, 0.1, 0.15]
+epsilon1 = [0.1]
+epsilon2 = [0.1]
 counter = 0
-fig1, ax1 = plt.subplots(3, 3, figsize=(20, 20))
-fig2, ax2 = plt.subplots(3, 3, figsize=(20, 20))
+fig1, ax1 = plt.subplots(1, 2, figsize = (20,10))
+#fig2, ax2 = plt.subplots(1, 1)
 
 for i, p in enumerate(epsilon1, 0):
     for j, q in enumerate(epsilon2, 0):
         rows = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
         col = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
         q_table = Q_learning(p, q)
-        maxQ_array = get_maxQ_array(q_table)
-        var_array = get_variance(q_table)
-        var_array = np.around(var_array, decimals=2)
-        var_array = var_array.astype(np.float)
-        heatmap_max = sns.heatmap(maxQ_array, annot=True, cmap="YlGnBu", ax=ax1[i, j])
-        ax1[i, j].set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
-        heatmap_var = sns.heatmap(var_array, annot=True, ax=ax2[i, j])
-        ax2[i, j].set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
-        # counter = counter + 1
+        (maxQ_array, max_action) = get_maxQ_array(q_table)
+        # var_array = get_variance(q_table)
+        # var_array = np.around(var_array, decimals=2)
+        # var_array = var_array.astype(np.float)
+        heatmap_maxQ = sns.heatmap(maxQ_array, annot=True, cmap="YlGnBu", ax=ax1[i])
+        heatmap_maxA = sns.heatmap(max_action, annot=True, cmap="YlGnBu", ax=ax1[i+1])
+        heatmap_maxQ.set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
+        heatmap_maxA.set_title("max Q value action heat map: 0 - up, 1 - down, 2 - left, 3 - right")
+        # heatmap_var = sns.heatmap(var_array, annot=True, ax=ax2)
+        # ax2.set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
+        # # counter = counter + 1
         obs_lst, trp_lst = obs_trp_lists()
 
         for r in obs_lst:
-            heatmap_max.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
+            heatmap_maxQ.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
         for s in trp_lst:
-            heatmap_max.add_patch(Rectangle(s, 1, 1, fill=True, edgecolor='black', lw=3))
-            heatmap_max.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
+            heatmap_maxQ.add_patch(Rectangle(s, 1, 1, fill=True, edgecolor='black', lw=3))
+            heatmap_maxQ.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
         for r in obs_lst:
-            heatmap_var.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
+            heatmap_maxA.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
         for s in trp_lst:
-            heatmap_var.add_patch(Rectangle(s, 1, 1, fill=True, edgecolor='black', lw=3))
-            heatmap_var.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
+            heatmap_maxA.add_patch(Rectangle(s, 1, 1, fill=True, edgecolor='black', lw=3))
+            heatmap_maxA.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
 fig1.savefig('MaxQ.jpeg', bbox="tight", dpi=200)
 fig1.show()
-fig2.savefig('variance.jpeg', bbox="tight", dpi=200)
-fig2.show()
+#fig2.savefig('variance.jpeg', bbox="tight", dpi=200)
+#fig2.show()
+
+os.system('spd-say "your program has finished"')
 
 # fig2.savefig("hi")
 
-# ---------------- ploting heatmap --------------------#
-
-# rows = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-# col = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-#
-# sns.set(style = "whitegrid")
-# heat_map = sns.heatmap(maxQ_array, annot= True, cmap="YlGnBu")
-#
-# # list of obstacle#
-# plt.show()
 
 
 # #### testing the learned policy  ###############
