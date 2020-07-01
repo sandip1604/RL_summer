@@ -30,6 +30,29 @@ class Grid(gym.Env):
     O = "obstacle"
     G = "goal"
 
+    def not_valid_actions(self):
+        for i in range(0, 10):
+            for j in range(0, 10):
+                print(i, j)
+                if not (self.GridWorld["state"][i][j] == O or self.GridWorld["state"][i][j] == T):
+                    if (i + 1) == 10:
+                        if self.GridWorld["state"][i - 1][j] == O:
+                            self.not_valid_action["up"].add((i, j))
+                    else:
+                        if self.GridWorld["state"][i + 1][j] == O:
+                            self.not_valid_action["down"].add((i, j))
+                        if self.GridWorld["state"][i - 1][j] == O:
+                            self.not_valid_action["up"].add((i, j))
+
+                    if (j + 1) == 10:
+                        if self.GridWorld["state"][i][j - 1] == O:
+                            self.not_valid_action["left"].add((i, j))
+                    else:
+                        if self.GridWorld["state"][i][j + 1] == O:
+                            self.not_valid_action["right"].add((i, j))
+                        if self.GridWorld["state"][i][j - 1] == O:
+                            self.not_valid_action["left"].add((i, j))
+
     def __init__(self):
         up = 0
         down = 1
@@ -40,33 +63,31 @@ class Grid(gym.Env):
         T = "trap"
         O = "obstacle"
         G = "goal"
-        self.GridWorld = {"state": np.array([S, S, S, S, O, T, S, S, S, S,
-                                             S, S, T, S, T, O, S, S, S, S,
-                                             S, O, O, S, S, S, T, S, S, S,
-                                             S, S, O, S, T, S, S, S, S, S,
-                                             S, O, T, S, S, S, T, T, O, O,
-                                             S, O, O, O, S, O, O, O, T, T,
+        self.GridWorld = {"state": np.array([S, S, S, S, S, S, S, S, S, S,
+                                             S, S, S, S, S, S, O, O, O, S,
+                                             S, S, T, T, S, S, S, S, O, S,
+                                             S, S, T, T, S, S, S, S, O, S,
                                              S, S, S, S, S, S, S, S, S, S,
-                                             S, T, O, O, O, S, O, O, O, S,
-                                             S, T, O, T, T, O, T, S, S, S,
-                                             S, S, S, S, S, S, S, S, T, G]).reshape(10, 10)}
+                                             S, S, S, S, T, T, T, S, S, S,
+                                             S, S, O, S, T, T, T, S, S, S,
+                                             S, S, O, S, S, S, S, S, S, S,
+                                             S, O, O, O, S, S, S, S, S, S,
+                                             S, S, S, S, S, S, S, S, S, G,]).reshape(10, 10)}
         self.not_valid_action = {
-            "up": {(0, 0), (0, 1), (0, 2), (0, 3), (0, 6), (0, 7), (0, 8), (0, 9), (2, 5), (3, 1), (6, 1), (6, 2),
-                   (6, 3), (6, 5), (6, 6), (6, 7), (8, 7), (8, 8), (9, 2), (9, 5)},
+            "up": {(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9)},
 
-            "down": {(1, 1), (3, 1), (3, 8), (3, 9), (6, 2), (4, 3), (4, 5), (6, 3), (6, 4), (6, 6), (6, 7), (6, 8), (7, 5),
-                     (9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7)},
+            "down": {(9, 0), (9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7), (9, 8), (9, 9)},
 
-            "left": {(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (2, 3), (3, 3),
-                     (1, 6),  (5, 4), (7, 5), (7, 9), (8, 0), (9, 0)},
+            "left": {(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0)},
 
-            "right": {(0, 3), (0, 9), (1, 9), (2, 9), (3, 9), (6, 9), (7, 9), (8, 9), (3, 1),  (2, 0), (4, 0), (5, 0),
-                      (3, 1), (5, 4), (7, 5)}
+            "right": {(0, 9), (1, 9), (2, 9), (3, 9), (4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9)}
         }
+        self.not_valid_actions()
         self.reward = 0
         self.goal = (9, 9)
         self.goal_reached = 0
         self.terminal_state = 0
+
         while True:
             column = random.randint(0, 9)
             row = random.randint(0, 9)
@@ -82,9 +103,10 @@ class Grid(gym.Env):
         T = "trap"
         O = "obstacle"
         G = "goal"
-        reg_reward = -1
+        reg_reward = -3
         goal_reward = 100
         trap_reward = -100
+        obstacle_reward = -20
         total_action: set = {0, 1, 2, 3}
         epsilon2 = epsilon2
 
@@ -97,7 +119,7 @@ class Grid(gym.Env):
             (row, col) = self.position
             if self.position in self.not_valid_action["up"]:
                 #print("can't move up")
-                self.reward = reg_reward
+                self.reward = obstacle_reward
                 # print(self.position,"up")
                 return_list = copy.deepcopy(
                     [self.position, self.GridWorld["state"][row][col], self.reward, self.goal_reached,
@@ -136,7 +158,7 @@ class Grid(gym.Env):
             (row, col) = self.position
             if self.position in self.not_valid_action["down"]:
                 #print("cant move down")
-                self.reward = reg_reward
+                self.reward = obstacle_reward
                 # print(self.position, "down")
                 return_list = copy.deepcopy(
                     [self.position, self.GridWorld["state"][row][col], self.reward, self.goal_reached,
@@ -175,7 +197,7 @@ class Grid(gym.Env):
             (row, col) = self.position
             if self.position in self.not_valid_action["left"]:
                 #print("can't move left")
-                self.reward = reg_reward
+                self.reward = obstacle_reward
                 return_list = copy.deepcopy(
                     [self.position, self.GridWorld["state"][row][col], self.reward, self.goal_reached,
                      self.terminal_state])
@@ -212,7 +234,7 @@ class Grid(gym.Env):
             (row, col) = self.position
             if self.position in self.not_valid_action["right"]:
                 #print("cant move right")
-                self.reward = reg_reward
+                self.reward = obstacle_reward
                 return_list = copy.deepcopy(
                     [self.position, self.GridWorld["state"][row][col], self.reward, self.goal_reached,
                      self.terminal_state])

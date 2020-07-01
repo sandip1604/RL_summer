@@ -6,28 +6,32 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure, Rectangle
 import seaborn as sns
 import statistics as stats
+import os
 
-
-def obs_trp_lists():
+env = Gridenv.Grid()
+def obs_trp_lists(q_table):
     obs_lst = []
-    for row in range(10):
-        for col in range(10):
-            if env.GridWorld["state"][row, col] == "obstacle":
-                obs_lst.append((col, row))
-
-    # list of traps#
     trp_lst = []
     for row in range(10):
         for col in range(10):
+            if env.GridWorld["state"][row, col] == "obstacle":
+                state = row*10+col
+                q_table[state][:] = None
+                obs_lst.append((col, row))
             if env.GridWorld["state"][row][col] == "trap":
+                state = row * 10 + col
+                q_table[state][:] = None
                 trp_lst.append((col, row))
+
+    # list of traps#
     return (obs_lst, trp_lst)
 
 
-env = Gridenv.Grid()
 
 
 ##---------------------------Tabular Q-learning  ----------------------------##
+S = "safe"
+
 
 def Q_learning(epsilon1, epsilon2):
     learning_rate = 0.2
@@ -36,13 +40,31 @@ def Q_learning(epsilon1, epsilon2):
     epsilon2 = epsilon2
 
     episode_goal = []
-    q_table = np.zeros([100, 4])
-    no_episodes = 100000
+    q_table = np.random.rand(100, 4) / 10000
+    no_episodes = 1000
     times_goal = 0
     times_traped = 0
     for episodes in range(0, no_episodes):
+        if (episodes % 1000000) == 0:
+            print(episodes % 1000000)
+            os.system('spd-say "your program has reached one milestone"')
         terminal_state = 0
         env.reset()
+
+        # if random.uniform(0, 1) < 0.7:
+        #     while True:
+        #         col = random.randint(5, 9)
+        #         row = random.randint(0, 4)
+        #         if env.GridWorld['state'][row][col] == S:
+        #             env.position = (row, col)
+        #             break
+        # else:
+        #     while True:
+        #         col = random.randint(0, 4)
+        #         row = random.randint(0, 4)
+        #         if env.GridWorld['state'][row][col] == S:
+        #             env.position = (row, col)
+        #             break
 
         # env.position = (0,0)
         position = env.position
@@ -55,11 +77,10 @@ def Q_learning(epsilon1, epsilon2):
                 chosen_action = random.randint(0, 3)
 
             else:
+
                 chosen_action = np.argmax(q_table[state, :], axis=0)
 
             # taking action
-            if state == 99:
-                print(chosen_action)
             list_next_state = env.step(chosen_action, epsilon2)
             if list_next_state[3]:
                 # print("goal reached")
@@ -94,16 +115,29 @@ def Q_learning(epsilon1, epsilon2):
 
 def get_maxQ_array(q_table):
     list_maxQ = []
+    list_max_action = []
     for i in range(0, 100):
-        max_q = np.amax(q_table[i, :], axis=0)
-        list_maxQ.append(max_q)
+        if np.isnan(q_table[i, 0]):
+            print("hi")
+            list_maxQ.append(np.nan)
+            list_max_action.append(np.nan)
+        else:
+            max_q = np.amax(q_table[i, :], axis=0)
+            max_a = np.argmax(q_table[i, :], axis=0)
+            print(max_a)
+            list_max_action.append(max_a)
+            list_maxQ.append(max_q)
+
+
 
     maxQ_array = np.array(list_maxQ)
     maxQ_array = maxQ_array.reshape((10, 10))
-    return maxQ_array
+    maxA_array = np.array(list_max_action)
+    maxA_array = maxA_array.reshape((10, 10))
+    return (maxQ_array, maxA_array)
 
 
-def get_variance(q_table):
+def get_variance_array(q_table):
     list_var = []
     for i in range(0, 100):
         list_var.append(stats.stdev(q_table[i, :]))
@@ -112,42 +146,59 @@ def get_variance(q_table):
     return var_array
 
 
-epsilon1 = [0.1, 0.2, 0.3]
-epsilon2 = [0.05, 0.1, 0.15]
+epsilon1 = [0.1]
+epsilon2 = [0.1]
 counter = 0
-fig1, ax1 = plt.subplots(3, 3, figsize=(20, 20))
-fig2, ax2 = plt.subplots(3, 3, figsize=(20, 20))
+fig1, ax1 = plt.subplots(1, 2, figsize=(20, 10))
+fig2, ax2 = plt.subplots(1, 2, figsize=(20, 10))
 
 for i, p in enumerate(epsilon1, 0):
     for j, q in enumerate(epsilon2, 0):
         rows = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
         col = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
         q_table = Q_learning(p, q)
-        maxQ_array = get_maxQ_array(q_table)
-        var_array = get_variance(q_table)
+        obs_lst, trp_lst = obs_trp_lists(q_table)
+        (maxQ_array, maxA_array) = get_maxQ_array(q_table)
+        var_array = get_variance_array(q_table)
         var_array = np.around(var_array, decimals=2)
         var_array = var_array.astype(np.float)
-        heatmap_max = sns.heatmap(maxQ_array, annot=True, cmap="YlGnBu", ax=ax1[i, j])
-        ax1[i, j].set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
-        heatmap_var = sns.heatmap(var_array, annot=True, ax=ax2[i, j])
-        ax2[i, j].set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
+        maxQ_array = maxQ_array.astype(np.float)
+        print(maxA_array)
+        print(maxQ_array)
+        np.set_printoptions(formatter={'float_kind': '{:f}'.format})
+        heatmap_max = sns.heatmap(maxQ_array, annot=True, cmap="YlGnBu", ax=ax1[0], fmt=".1f")
+        ax1[0].set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
+        heatmap_action1 = sns.heatmap(maxA_array, annot=True, cmap="YlGnBu", ax=ax1[1])
+        ax1[1].set_title("0- up , 1 - down, 2 - left, 3 - right")
+        heatmap_var = sns.heatmap(var_array, annot=True, ax=ax2[0], fmt=".1f")
+        ax2[0].set_title("epsilon = %f and p = %f" % (round(p, 2), round(q, 2)))
+        heatmap_action2 = sns.heatmap(maxA_array, annot=True, cmap="YlGnBu", ax=ax2[1])
+        ax1[1].set_title("0- up , 1 - down, 2 - left, 3 - right")
         # counter = counter + 1
-        obs_lst, trp_lst = obs_trp_lists()
+
 
         for r in obs_lst:
             heatmap_max.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
-        for s in trp_lst:
-            heatmap_max.add_patch(Rectangle(s, 1, 1, fill=True, edgecolor='black', lw=3))
-            heatmap_max.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
-        for r in obs_lst:
             heatmap_var.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
+            heatmap_action1.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
+            heatmap_action2.add_patch(Rectangle(r, 1, 1, fill=False, edgecolor='green', lw=3))
         for s in trp_lst:
-            heatmap_var.add_patch(Rectangle(s, 1, 1, fill=True, edgecolor='black', lw=3))
+            heatmap_max.add_patch(Rectangle(s, 1, 1, fill=True, color = "blue" , edgecolor='black', lw=3))
+            heatmap_max.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
+            heatmap_var.add_patch(Rectangle(s, 1, 1, fill=True, color = "blue" , edgecolor='black', lw=3))
             heatmap_var.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
-fig1.savefig('MaxQ.jpeg', bbox="tight", dpi=200)
+            heatmap_action2.add_patch(Rectangle(s, 1, 1, fill=True, color = "blue" , edgecolor='black', lw=3))
+            heatmap_action2.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
+            heatmap_action1.add_patch(Rectangle(s, 1, 1, fill=True, color = "blue" , edgecolor='black', lw=3))
+            heatmap_action1.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
+
+fig1.savefig('MaxQ-SIMPLE0.1M-0.1.png', bbox="tight", dpi=200)
 fig1.show()
-fig2.savefig('variance.jpeg', bbox="tight", dpi=200)
+fig2.savefig('variance-SIMPLE0.1M-0.1.png', bbox="tight", dpi=200)
 fig2.show()
+
+
+os.system('spd-say "your program has finished"')
 
 # fig2.savefig("hi")
 
