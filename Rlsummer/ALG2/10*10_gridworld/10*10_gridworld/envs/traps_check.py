@@ -11,6 +11,8 @@ import math
 import torch
 from variance_learning import Variance
 import time
+from numba import prange, njit
+
 plt.style.use('ggplot')
 
 
@@ -36,14 +38,14 @@ def obs_trp_lists(q_table):
 
 
 
-def Q_learning(epsilon1, epsilon2, learning_rate, discount_rate, no_episodes, alpha):
+def Q_learning(epsilon1, epsilon2, discount_rate, no_episodes, alpha):
     Qtable_list = []
     epsiode_no = []
     Var = Variance(discount_rate)
     q_table = np.random.rand(100, 4) / 10000
     q_visits = np.zeros((100,4))
     for episodes in range(0, no_episodes):
-
+        episode_data = []
         if (episodes % 1000000) == 0:
             os.system('spd-say "your program has reached one milestone"')
         env.reset()
@@ -55,23 +57,6 @@ def Q_learning(epsilon1, epsilon2, learning_rate, discount_rate, no_episodes, al
                 print(episodes)
         except:
             print(episodes)
-
-        # if random.uniform(0, 1) < 0.7:
-        #     while True:
-        #         col = random.randint(5, 9)
-        #         row = random.randint(0, 4)
-        #         if env.GridWorld['state'][row][col] == S:
-        #             env.position = (row, col)
-        #             break
-        # else:
-        #     while True:
-        #         col = random.randint(0, 4)
-        #         row = random.randint(0, 4)episode_data = []
-        #         if env.GridWorld['state'][row][col] == S:
-        #             env.position = (row, col)
-        #             break
-
-        # env.position = (0,0))
 
         position = env.position
         state = ((list(position)[0] * 10) + list(position)[1])
@@ -113,24 +98,23 @@ def Q_learning(epsilon1, epsilon2, learning_rate, discount_rate, no_episodes, al
 
             if terminal_state:
                 break
-    print(q_visits)
     return q_table, Qtable_list, Var
 
 
 # ------------------------ getting max and varinace arrays --------------------#
 
-def getQvar_array(q_table, var_matrix):
-
+def getQvar_array(maxA_array, var_matrix):
+    maxA_array = list(maxA_array.flatten())
     var_array = np.zeros((100))
-    for i in range(100):
-        if np.isnan(q_table[i][0]):
+    for i,state in enumerate(maxA_array):
+        if np.isnan(maxA_array[i]):
             var_array[i] = np.nan
-        var_array[i] = var_matrix[i, np.argmax(q_table[i,:])]
+        var_array[i] = var_matrix[i, state]
     var_array = var_array.reshape(10,10)
     return var_array
 
 
-def get_maxQ_array(q_table, Variance_table):
+def get_maxQ_array(q_table):
     list_maxQ = []
     list_max_action = []
     for i in range(0, 100):
@@ -140,10 +124,10 @@ def get_maxQ_array(q_table, Variance_table):
             list_max_action.append(np.nan)
         else:
             max_q = np.amax(q_table[i, :], axis=0)
-            if Variance_table[i, np.argmax(q_table[i, :], axis=0)] <= 397:
-                max_a = np.argmax(q_table[i, :], axis=0)
-            else:
-                max_a = 4
+            # if np.amax(q_table[i, :], axis=0) > -11:
+            max_a = np.argmax(q_table[i, :], axis=0)
+            # else:
+            #     max_a = 4
             # print(max_a)
             list_max_action.append(max_a)
             list_maxQ.append(max_q)
@@ -210,13 +194,13 @@ def heatmap_display(maxQ_array, maxA_array, var_array, obs_lst, trp_lst, Varianc
         heatmap_action3.add_patch(Rectangle(s, 1, 1, fill=True, color="blue", edgecolor='black', lw=3))
         heatmap_action3.add_patch(Rectangle((9, 9), 1, 1, fill=False, edgecolor='red', lw=3))
 
-    fig1.savefig('MaxQ-ALG2-10M-formula_change.png', bbox="tight", dpi=200)
-    fig1.show()
-    fig2.savefig('variance-ALG2-10M-formula_cahnge.png', bbox="tight", dpi=200)
-    fig2.show()
-    fig3.show()
+    # fig1.savefig('MaxQ-ALG2-10M-formula_change.png', bbox="tight", dpi=200)
+    # fig1.show()
+    # fig2.savefig('variance-ALG2-10M-formula_cahnge.png', bbox="tight", dpi=200)
+    # fig2.show()
+    # fig3.show()
 
-def returns_graph(Qtable_list, Variance_table):
+def returns_graph(Qtable_list):
     start_points = [(1, 1), (2, 7), (4, 3), (6, 3), (0, 0), (0, 4), (8, 5), (5, 8), (6, 0), (8, 0), (3, 7)]
     avg_reward_list = []
     for k, i in enumerate(Qtable_list):
@@ -233,7 +217,7 @@ def returns_graph(Qtable_list, Variance_table):
                 return_recieved = 0
                 while True:
                     ####------------------choosing_action-----------------------########
-                    if Variance_table[state, np.argmax(i[state, :], axis=0)] > 397:
+                    if np.amax(i[state, :], axis=0) <= -15:
                         chosen_action = 4
                     else:
                         chosen_action = np.argmax(i[state, :], axis=0)
@@ -264,7 +248,6 @@ def returns_graph(Qtable_list, Variance_table):
             reward_q_list = reward_q_list + iter_reward_list
 
         avg_reward_list.append(stats.mean(reward_q_list))
-    #print(len(avg_reward_list))
     avg_reward_list = [round(num, 1) for num in avg_reward_list]
     fig1, ax = plt.subplots()
     fig1 = ax.bar(torch.arange(len(avg_reward_list)), avg_reward_list, alpha=0.6, color='green')
@@ -286,7 +269,10 @@ if __name__ == "__main__":
     no_episodes = 10000000
     counter = 0
     alpha = 0.2
-    ###############################
+    q_table_tensor = torch.zeros((5,100,4))
+    variance_tensor = torch.zeros((5,100,4))
+
+    ###############################q_
 
     fig1, ax1 = plt.subplots(1, 2, figsize=(20, 10))
     fig2, ax2 = plt.subplots(1, 2, figsize=(20, 10))
@@ -295,18 +281,23 @@ if __name__ == "__main__":
         for j, q in enumerate(epsilon2, 0):
             rows = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
             col = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-            q_table, Qtable_list, Var = Q_learning(p, q, learning_rate, discount_rate, no_episodes, alpha)
-            #print(len(Qtable_list))
-            obs_lst, trp_lst = obs_trp_lists(q_table)
-            (maxQ_array, maxA_array) = get_maxQ_array(q_table, Var.Variance)
-            var_array = get_variance_array(q_table)
-            var_array = np.around(var_array, decimals=2)
-            var_array = var_array.astype(np.float)
-            maxQ_array = maxQ_array.astype(np.float)
-            Qvar_array = getQvar_array(q_table, Var.Variance)
-            heatmap_display(maxQ_array, maxA_array, var_array, obs_lst, trp_lst, Qvar_array)
-            returns_graph(Qtable_list, Var.Variance)
-            #print(Var.Variance)
+            for k in prange(10):
+                q_table, Qtable_list, Var = Q_learning(p, q, discount_rate, no_episodes, alpha)
+                obs_lst, trp_lst = obs_trp_lists(q_table)
+                (maxQ_array, maxA_array) = get_maxQ_array(q_table)
+                var_array = get_variance_array(q_table)
+                var_array = np.around(var_array, decimals=2)
+                var_array = var_array.astype(np.float)
+                maxQ_array = maxQ_array.astype(np.float)
+                Qvar_array = get_variance_array(Var.Variance)
+                heatmap_display(maxQ_array, maxA_array, var_array, obs_lst, trp_lst, Qvar_array)
+                returns_graph(Qtable_list)
+                q_table_tensor[k] = torch.from_numpy(q_table)
+                variance_tensor[k] = torch.from_numpy(Var.Variance)
+                torch.save(q_table_tensor, 'q_table_tensor.pt')
+                torch.save(variance_tensor, 'variance_tensor.pt')
+
+
 
     os.system('spd-say "your program has finished"')
 

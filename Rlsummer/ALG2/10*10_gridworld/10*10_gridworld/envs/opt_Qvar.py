@@ -1,16 +1,16 @@
-import numpy as np
-import random
-import Gridenv
 import copy
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import figure, Rectangle
-import seaborn as sns
-import statistics as stats
-import os
 import math
-import torch
+import os
+import random
+import statistics as stats
+
+import Gridenv
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from matplotlib.pyplot import Rectangle
 from variance_learning import Variance
-import time
+
 plt.style.use('ggplot')
 
 
@@ -43,7 +43,7 @@ def Q_learning(epsilon1, epsilon2, learning_rate, discount_rate, no_episodes, al
     q_table = np.random.rand(100, 4) / 10000
     q_visits = np.zeros((100,4))
     for episodes in range(0, no_episodes):
-
+        episode_data = []
         if (episodes % 1000000) == 0:
             os.system('spd-say "your program has reached one milestone"')
         env.reset()
@@ -55,23 +55,6 @@ def Q_learning(epsilon1, epsilon2, learning_rate, discount_rate, no_episodes, al
                 print(episodes)
         except:
             print(episodes)
-
-        # if random.uniform(0, 1) < 0.7:
-        #     while True:
-        #         col = random.randint(5, 9)
-        #         row = random.randint(0, 4)
-        #         if env.GridWorld['state'][row][col] == S:
-        #             env.position = (row, col)
-        #             break
-        # else:
-        #     while True:
-        #         col = random.randint(0, 4)
-        #         row = random.randint(0, 4)episode_data = []
-        #         if env.GridWorld['state'][row][col] == S:
-        #             env.position = (row, col)
-        #             break
-
-        # env.position = (0,0))
 
         position = env.position
         state = ((list(position)[0] * 10) + list(position)[1])
@@ -96,6 +79,7 @@ def Q_learning(epsilon1, epsilon2, learning_rate, discount_rate, no_episodes, al
             q_visits[state,action] += 1
             list_next_state = env.step(action, epsilon2, expert_call)
             reward = list_next_state[2]
+            episode_data.append((state,action,reward))
 
             position = copy.deepcopy(list_next_state[0])
             terminal_state = list_next_state[-1]
@@ -130,7 +114,7 @@ def getQvar_array(q_table, var_matrix):
     return var_array
 
 
-def get_maxQ_array(q_table, Variance_table):
+def get_maxQ_array(q_table):
     list_maxQ = []
     list_max_action = []
     for i in range(0, 100):
@@ -140,10 +124,10 @@ def get_maxQ_array(q_table, Variance_table):
             list_max_action.append(np.nan)
         else:
             max_q = np.amax(q_table[i, :], axis=0)
-            if Variance_table[i, np.argmax(q_table[i, :], axis=0)] <= 397:
-                max_a = np.argmax(q_table[i, :], axis=0)
-            else:
-                max_a = 4
+            #if np.amax(q_table[i, :], axis=0) > -11:
+            max_a = np.argmax(q_table[i, :], axis=0)
+            #else:
+                #max_a = 4
             # print(max_a)
             list_max_action.append(max_a)
             list_maxQ.append(max_q)
@@ -216,63 +200,101 @@ def heatmap_display(maxQ_array, maxA_array, var_array, obs_lst, trp_lst, Varianc
     fig2.show()
     fig3.show()
 
-def returns_graph(Qtable_list, Variance_table):
+def returns_graph(Qtable_list, varinace_table, bound):
     start_points = [(1, 1), (2, 7), (4, 3), (6, 3), (0, 0), (0, 4), (8, 5), (5, 8), (6, 0), (8, 0), (3, 7)]
     avg_reward_list = []
+    episodes_in_trap = 0
     for k, i in enumerate(Qtable_list):
         reward_q_list = []
-        for p in range(0, 10):
+        for p in range(0, 100):
             iter_reward_list = []
-            for j in start_points:
-                ultimate_list = []
-                env.reset()
-                steps = 0
-                env.position = j
-                position = env.position
-                state = ((list(position)[0] * 10) + list(position)[1])
-                return_recieved = 0
-                while True:
-                    ####------------------choosing_action-----------------------########
-                    if Variance_table[state, np.argmax(i[state, :], axis=0)] > 397:
-                        chosen_action = 4
-                    else:
-                        chosen_action = np.argmax(i[state, :], axis=0)
+            ultimate_list = []
+            env.reset()
+            steps = 0
+            position = env.position
+            state = ((list(position)[0] * 10) + list(position)[1])
+            return_recieved = 0
+            while True:
+                ####------------------choosing_action-----------------------########
+                if varinace_table[state,np.argmax(i[state,:])] > bound:
+                    chosen_action = 4
+                else:
+                    chosen_action = np.argmax(i[state, :], axis=0)
 
-                    if chosen_action == 4:
-                        action = env.GridWorld["expert"][position[0]][position[1]]
-                        # print(postion[0], position[1])
-                        expert_call = 1
+                if chosen_action == 4:
+                    action = env.GridWorld["expert"][position[0]][position[1]]
+                    # print(postion[0], position[1])
+                    expert_call = 1
 
-                    else:
-                        expert_call = 0
-                        action = chosen_action
+                else:
+                    expert_call = 0
+                    action = chosen_action
 
-                    list_next_state = env.step(action, epsilon2[0], expert_call)
-                    steps += 1
-                    ultimate_list.append((list_next_state[0], action))
-                    reward = list_next_state[2]
-                    position = copy.deepcopy(list_next_state[0])
-                    terminal_state = list_next_state[-1]
-                    next_state = ((list(position)[0] * 10) + list(position)[1])
-                    return_recieved += reward
-                    state = next_state
+                list_next_state = env.step(action, epsilon2[0], expert_call)
+                steps += 1
+                ultimate_list.append((list_next_state[0], action))
+                reward = list_next_state[2]
+                position = copy.deepcopy(list_next_state[0])
+                terminal_state = list_next_state[-1]
+                trap = not(list_next_state[-2])
+                next_state = ((list(position)[0] * 10) + list(position)[1])
+                return_recieved += reward
+                state = next_state
 
-                    if terminal_state:
-                        iter_reward_list.append(return_recieved)
-                        break
+                if terminal_state:
+                    iter_reward_list.append(return_recieved)
+                    if reward == -100:
+                        episodes_in_trap += 1
+                    break
 
             reward_q_list = reward_q_list + iter_reward_list
 
         avg_reward_list.append(stats.mean(reward_q_list))
-    #print(len(avg_reward_list))
     avg_reward_list = [round(num, 1) for num in avg_reward_list]
-    fig1, ax = plt.subplots()
-    fig1 = ax.bar(torch.arange(len(avg_reward_list)), avg_reward_list, alpha=0.6, color='green')
-    ax.set_xlabel("number of episodes of training ( in log scale to the base 4)")
-    autolabel(fig1, ax)
-    #plt.savefig("reward_Qlearning-ALG2")
-    plt.show()
+    # fig1, ax = plt.subplots()
+    # fig1 = ax.bar(torch.arange(len(avg_reward_list)), avg_reward_list, alpha=0.6, color='green')
+    # ax.set_xlabel("number of episodes of training ( in log scale to the base 4)")
+    # autolabel(fig1, ax)
+    # #plt.savefig("reward_Qlearning-ALG2")
+    # #plt.show()
+    return avg_reward_list[0], episodes_in_trap
 
+def optimise(q_table, variance_table):
+    bounds, step = list(np.linspace(1300, 0, num=800, endpoint = False, retstep = True))
+    return_list = []
+    wasted_episodes_list = []
+    for bound in bounds:
+        return_got, episodes_wasted = returns_graph([q_table], variance_table, bound)
+        return_list.append(return_got)
+        wasted_episodes_list.append(episodes_wasted)
+    print(return_list)
+    print(wasted_episodes_list)
+    max = np.amax(return_list)
+    min = np.amin(wasted_episodes_list)
+    min_index = np.argmin(wasted_episodes_list)
+    max_index = np.argmax(return_list)
+    return_list = [round(num, 2) for num in return_list]
+    fig1, ax1 = plt.subplots()
+    fig2, ax2 = plt.subplots()
+    fig1 = ax1.bar(bounds, return_list, alpha=0.6, color='green')
+    fig2 = ax2.bar(bounds, wasted_episodes_list, alpha = 0.6, color = 'red')
+    # ax.set_title('rewards collected- ALG2-0.3')
+    ax1.set_xlabel("thresshold")
+    ax2.set_xlabel("thresshold")
+    for rect in fig1:
+        height = rect.get_height()
+        if height == max:
+            ax1.annotate('{}'.format(height),
+                        xy=(rect.get_x() + rect.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+    plt.savefig("optimisation curve")
+    plt.show()
+    print(bounds[max_index])
+    print(max)
+    print(bounds[min_index])
+    print(min)
 
 # -------------------- code ------------------------------#
 if __name__ == "__main__":
@@ -296,16 +318,16 @@ if __name__ == "__main__":
             rows = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
             col = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
             q_table, Qtable_list, Var = Q_learning(p, q, learning_rate, discount_rate, no_episodes, alpha)
-            #print(len(Qtable_list))
             obs_lst, trp_lst = obs_trp_lists(q_table)
-            (maxQ_array, maxA_array) = get_maxQ_array(q_table, Var.Variance)
+            (maxQ_array, maxA_array) = get_maxQ_array(q_table)
             var_array = get_variance_array(q_table)
             var_array = np.around(var_array, decimals=2)
             var_array = var_array.astype(np.float)
             maxQ_array = maxQ_array.astype(np.float)
             Qvar_array = getQvar_array(q_table, Var.Variance)
             heatmap_display(maxQ_array, maxA_array, var_array, obs_lst, trp_lst, Qvar_array)
-            returns_graph(Qtable_list, Var.Variance)
+            #returns_graph(Qtable_list)
+            optimise(q_table, Var.Variance)
             #print(Var.Variance)
 
     os.system('spd-say "your program has finished"')
@@ -315,65 +337,6 @@ if __name__ == "__main__":
 
 
 
-# fig2.savefig("hi")
-
-# ---------------- ploting heatmap --------------------#
-
-# rows = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-# col = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-#
-# sns.set(style = "whitegrid")
-# heat_map = sns.heatmap(maxQ_array, annot= True, cmap="YlGnBu")
-#
-# # list of obstacle#
-# plt.show()
 
 
-# #### testing the learned policy  ###############
 
-# print("now lets test the policy we have created")
-#
-# list_steps = []
-# goal_steps = []
-# trap_steps = []
-# test_goal = 0
-#
-# for episodes in range(0, 100):
-#
-#     # print("episode number %i running" % episodes)counter
-#     terminal_state = 0
-#     steps = 0
-#     times_traped = 0
-#     env.reset()
-#     # env.position = (0,0)
-#     position = env.position
-#     print((position[0] + 1, position[1] + 1))
-#     state = ((list(position)[0] * 10) + list(position)[1])
-#
-#     while True:/home/sandip/PycharmProjects/udemy-RL-pytorch
-#         chosen_action = np.argmax(q_table[state, :], axis=0)
-#
-#         list_next_state = env.step(chosen_action)
-#         steps = steps + 1
-#         if list_next_state[3]:
-#             print("goal reached")
-#             # print(steps)
-#             test_goal = test_goal + 1
-#         if (list_next_state[-1] and (not list_next_state[3])):
-#             # print("trapped")
-#             times_traped = times_traped + 1
-#
-#         position = copy.copy(list_next_state[0])
-#         # print(position)
-#         terminal_state = list_next_state[-1]
-#         next_state = ((list(position)[0] * 10) + list(position)[1])
-#         state = next_state
-#
-#         if terminal_state:
-#             break
-#     print("while loop exited--------------------------")
-# print(test_goal)
-# # print(q_table)
-# # plt.plot(list_steps, label = 'normal steps')
-# #
-# # # plt.show()
