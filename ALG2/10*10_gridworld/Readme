@@ -1,0 +1,3 @@
+gym-10*10 gridworld:
+	
+	10*10 grid world is an enviroment for RL agent with obstacles and traps. To begin, map will be fixed and actions will be deterministic
